@@ -37,21 +37,22 @@ public class DNPlayer implements SurfaceHolder.Callback {
         holder.addCallback(this);
     }
 
-    public void onError(int errorCode){
-        System.out.println("Java接到回调:"+errorCode);
+    public void onError(int errorCode) {
+        System.out.println("Java接到回调:" + errorCode);
     }
 
 
-    public void onPrepare(){
-        if (null != listener){
+    public void onPrepare() {
+        if (null != listener) {
             listener.onPrepare();
         }
     }
 
-    public void setOnPrepareListener(OnPrepareListener listener){
+    public void setOnPrepareListener(OnPrepareListener listener) {
         this.listener = listener;
     }
-    public interface OnPrepareListener{
+
+    public interface OnPrepareListener {
         void onPrepare();
     }
 
@@ -87,7 +88,7 @@ public class DNPlayer implements SurfaceHolder.Callback {
      */
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
-
+        native_stop();
     }
 
     /**
@@ -115,7 +116,10 @@ public class DNPlayer implements SurfaceHolder.Callback {
 
 
     native void native_prepare(String dataSource);
+
     native void native_start();
 
     native void native_setSurface(Surface surface);
+
+    native void native_stop();
 }

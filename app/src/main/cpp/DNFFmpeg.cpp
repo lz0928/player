@@ -37,8 +37,11 @@ void DNFFmpeg::_prepare() {
     avformat_network_init();
     //1、打开媒体地址(文件地址、直播地址)
     // AVFormatContext  包含了 视频的 信息(宽、高等)
-    formatContext = 0;
-    //文件路径不对 手机没网
+    //文件路径不对 手机没网 会失败
+    //第3个参数：指示打开的媒体格式（传NULL，ffmpeg自动推导出媒体格式）
+    AVDictionary *options =0;
+    //设置超时时间
+    av_dict_set(&options, "timeout", "5 * 1000 * 1000",0);
     int ret = avformat_open_input(&formatContext, dataSource, 0, 0);
     //ret不为0表示 打开媒体失败
     if (ret != 0) {
@@ -55,10 +58,11 @@ void DNFFmpeg::_prepare() {
         return;
     }
     //nb_streams :几个流(几段视频/音频)
+    //遍历context中的流
     for (int i = 0; i < formatContext->nb_streams; ++i) {
         //可能代表是一个视频 也可能代表是一个音频
         AVStream *stream = formatContext->streams[i];
-        //包含了 解码 这段流 的各种参数信息(宽、高、码率、帧率)
+        //解码器参数 包含了 解码 这段流 的各种参数信息(宽、高、码率、帧率)
         AVCodecParameters *codecpar = stream->codecpar;
 
         //无论视频还是音频都需要干的一些事情（获得解码器）
@@ -170,4 +174,8 @@ void DNFFmpeg::_start() {
 
 void DNFFmpeg::setRenderFrameCallback(RenderFrameCallback callback){
     this->callback = callback;
+}
+
+void DNFFmpeg::stop() {
+
 }

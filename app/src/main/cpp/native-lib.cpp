@@ -80,3 +80,11 @@ Java_com_dongnao_player_DNPlayer_native_1setSurface(JNIEnv *env, jobject instanc
     window = ANativeWindow_fromSurface(env, surface);
     pthread_mutex_unlock(&mutex);
 }
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_dongnao_player_DNPlayer_native_1stop(JNIEnv *env, jobject thiz) {
+    if (ffmpeg) {
+        ffmpeg->stop();
+    }
+}
