@@ -93,13 +93,19 @@ void DNFFmpeg::_prepare() {
             callHelper->onError(THREAD_CHILD, FFMPEG_OPEN_DECODER_FAIL);
             return;
         }
+
+
+        AVRational time_base= stream->time_base;
         //音频
         if (codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
             //0
-            audioChannel = new AudioChannel(i,context);
+            audioChannel = new AudioChannel(i, context, time_base);
         } else if (codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            //帧率：单位时间内 需要显示多少个图像
+            AVRational frame_rate = stream->avg_frame_rate;
+            int fps = frame_rate.num/frame_rate.den;
             //1
-            videoChannel = new VideoChannel(i,context);
+            videoChannel = new VideoChannel(i, context, fps, time_base);
             videoChannel->setRenderFrameCallback(callback);
         }
     }
@@ -128,6 +134,7 @@ void DNFFmpeg::start() {
     }
     //启动声音的解码与播放
     if (audioChannel){
+        videoChannel->setAudioChannel(audioChannel);
         audioChannel->play();
     }
     pthread_create(&pid_play, 0, play, this);

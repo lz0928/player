@@ -13,7 +13,7 @@ extern  "C"{
 
 class AudioChannel: public BaseChannel {
 public:
-    AudioChannel(int id,AVCodecContext *avCodecContext);
+    AudioChannel(int id, AVCodecContext *avCodecContext,AVRational time_base);
     ~AudioChannel();
     void play();
 

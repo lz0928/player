@@ -2,6 +2,7 @@
 
 extern "C"{
 #include <libavutil/imgutils.h>
+#include <libavutil/time.h>
 }
 #include "VideoChannel.h"
 #include "macro.h"
@@ -18,16 +19,44 @@ void *render_task(void *args) {
     return 0;
 }
 
+//丢包
+//void dropAvPacket(queue<AVPacket*> &q){
+//    while (!q.empty()) {
+//        AVPacket *packet = q.front();
+//        //如果不属于I帧
+//        if (packet->flags != AV_PKT_FLAG_KEY) {
+//            LOGE("不是I帧，丢包");
+//            BaseChannel::releaseAvPacket(&packet);
+//            q.pop();
+//        } else {
+//            break;
+//        }
+//    }
+//}
 
+void dropAvFrame(queue<AVFrame*> &q){
+    LOGE("开始丢包");
+    if (!q.empty()) {
+        AVFrame *frame = q.front();
+        BaseChannel::releaseAvFrame(&frame);
+        q.pop();
+    }
+}
 
-VideoChannel::VideoChannel(int id, AVCodecContext *avCodecContext) : BaseChannel(id,
-                                                                                 avCodecContext) {
-
-
+VideoChannel::VideoChannel(int id, AVCodecContext *avCodecContext, int fps, AVRational time_base)
+        : BaseChannel(id, avCodecContext,time_base) {
+    this->fps = fps;
+    //设置一个同步操作 队列的一个函数指针
+//    packets.setSyncHandle(dropAvPacket);
+    frames.setSyncHandle(dropAvFrame);
 }
 
 VideoChannel::~VideoChannel() {
 
+}
+
+void VideoChannel::setAudioChannel(AudioChannel *audioChannel) {
+    this->audioChannel = audioChannel;
 }
 
 void VideoChannel::play() {
@@ -83,6 +112,8 @@ void VideoChannel::render() {
             avCodecContext->width, avCodecContext->height,avCodecContext->pix_fmt,
             avCodecContext->width, avCodecContext->height,AV_PIX_FMT_RGBA,
             SWS_BILINEAR,0,0,0);
+    //每个画面刷新的间隔 单位：秒
+    double  frame_delays = 1.0/fps;
     AVFrame* frame = 0;
     //指针数组
     uint8_t *dst_data[4];
@@ -100,6 +131,41 @@ void VideoChannel::render() {
                   avCodecContext->height,
                   dst_data,
                   dst_linesize);
+        //获得当前这一个画面的播放的相对时间
+        clock = frame->best_effort_timestamp * av_q2d(time_base);
+        //额外的间隔时间
+        double extra_delay = frame->repeat_pict / (2 * fps);
+        //真实需要的间隔时间
+        double  delays = extra_delay + frame_delays;
+        if (!audioChannel) {
+            //休眠 参数：微秒
+            av_usleep(frame_delays * 1000000);
+        } else{
+            if (clock == 0) {
+                av_usleep(frame_delays * 1000000);
+            } else {
+                //比较音频与视频
+                double audioClock = audioChannel->clock;
+                //音视频相差的间隔
+                double diff = clock-audioClock;
+//                LOGE("diff:%f  videoClocl:%f  audioClock:%f",diff,clock,audioClock);
+                //大于0：视频快，小于0：音频快
+                if (diff > 0) {
+                    av_usleep((frame_delays + diff) * 1000000);
+                } else if (diff < 0) {
+                    //不睡了 快点赶上 音频
+                    //视频包积压太多（丢包）
+                    if (fabs(diff) >= 0.05) {
+                        releaseAvFrame(&frame);
+                        //丢包
+                        //packets.sync();
+                        frames.sync();
+                        continue;
+                    }
+                }
+            }
+        }
+
         //回调出去进行播放
         callback(dst_data[0],dst_linesize[0],avCodecContext->width, avCodecContext->height);
         releaseAvFrame(&frame);
